@@ -53,6 +53,6 @@ setup(
     },
     install_requires=['setuptools', 'ansible >= 2'],
     extras_require={
-        'test': ['tox', 'pytest'],
+        'test': ['tox'],
     },
 )
