@@ -13,4 +13,5 @@ class Directive(object):
         self.targets = targets
 
     def __repr__(self):
-        return '<directive for {}: {}>'.format(', '.join([t.__name__ for t in self.targets]), self.name)
+        return '<directive for {}: {}>'.format(
+            ', '.join([t.__name__ for t in self.targets]), self.name)

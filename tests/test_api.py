@@ -35,14 +35,16 @@ SRC5 = '''---
     c
 '''
 
+
 class TestApiCompletions(unittest.TestCase):
+
     TEST_DATA = (
         # (src pos, tuple of modules included, exclusion modules, directives, exclusion directives)
         # (SRC, (1, 6), (), ('command',), ('name',), ('action',)),
         (SRC, (3, 10), ('shell', 'win_shell'), ('command',), (), ('action',)),
         (SRC, (4, 16), (), ('command',), (), ('action',)),
         (SRC, (5, 14), ('command', 'win_command',), ('shell',), (), ('action',)),
-        (SRC, (7, 6), (), ('add_host',), ('hosts',), ('action',))
+        (SRC, (7, 6), (), ('add_host',), ('hosts',), ('action',)),
     )
 
     def test_api_module_name_completions(self):
@@ -79,7 +81,6 @@ class TestApiCompletions(unittest.TestCase):
         assert result['task'] is False
         assert result['block'] is True
 
-
     def test_api_search_tree_role(self):
         src = '''---
 - roles:
@@ -104,11 +105,12 @@ class TestApiCompletions(unittest.TestCase):
         assert result['module'] is True
 
     def test_api_search_tree_module_arg(self):
-        result = api.Script(SRC4, line=3, column=5)._search_tree()
+        script = api.Script(SRC4, line=3, column=5)
+        result = script._search_tree()
         assert isinstance(result['module_arg'], Module)
         assert result['module_arg'].name == 'yum'
 
-    def test_api_search_tree_module_arg(self):
+    def test_api_search_tree_module_arg_command(self):
         result = api.Script(SRC5, line=3, column=5)._search_tree()
         assert isinstance(result['module_arg'], Module)
         assert result['module_arg'].name == 'command'

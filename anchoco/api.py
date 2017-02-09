@@ -36,6 +36,8 @@ def _list_all_directives():
         for aclass in v:
             result.setdefault(aclass, set()).add(obj)
     return result
+
+
 all_directives = _list_all_directives()
 task_only_directives = all_directives[Task] - all_directives[Play]
 play_only_directives = all_directives[Play] - all_directives[Task]
@@ -67,6 +69,8 @@ def _find_modules_in_path(path):
                 module = module.replace('_', '', 1)
             module = os.path.splitext(module)[0]  # removes the extension
             yield Module(module)
+
+
 all_modules = _list_all_modules()
 
 
@@ -108,10 +112,14 @@ class Script(object):
             if "could not find expected ':'" in e.problem:
                 regexp = r'\s'
                 inserted_str = ':'
-            elif e.context == "while scanning a quoted scalar" and e.problem == 'found unexpected end of stream':
+            elif (
+                    e.context == "while scanning a quoted scalar" and
+                    e.problem == 'found unexpected end of stream'
+            ):
                 regexp = r'$'
                 inserted_str = src[e.context_mark.index]
-            elif e.problem in ("mapping values are not allowed in this context", "mapping values are not allowed here"):
+            elif e.problem in ("mapping values are not allowed in this context",
+                               "mapping values are not allowed here"):
                 ci = len(''.join(src.splitlines(True)[:e.problem_mark.line - 1]))
                 regexp = r'$'
                 inserted_str = ':'
@@ -145,7 +153,8 @@ class Script(object):
                 if not result['task'] and not result['play']:
                     result['task'] = result['play'] = True
             # Taskのリストを含むディレクティブ内の補完
-            elif len(tree) >= 5 and (isinstance(tree[-3], six.text_type) or isinstance(tree[-4], six.text_type)):
+            if len(tree) >= 5 and (isinstance(tree[-3], six.text_type) or
+                                   isinstance(tree[-4], six.text_type)):
                 parent = tree[-3] if isinstance(tree[-3], six.text_type) else tree[-4]
                 if parent in TASK_DIRECTIVES:
                     result['task'] = True
@@ -155,10 +164,11 @@ class Script(object):
                 elif parent in ROLE_DIRECTIVES:
                     result['role'] = True
             # モジュール名のみを補完
-            elif len(tree) >= 4 and tree[-2] in ACTION_DIRECTIVES:
+            if len(tree) >= 4 and tree[-2] in ACTION_DIRECTIVES:
                 result['module'] = True
             # モジュール引数を補完
-            elif len(tree) >= 4 and (isinstance(tree[-2], six.text_type) or isinstance(tree[-3], six.text_type)):
+            if len(tree) >= 4 and (isinstance(tree[-2], six.text_type) or
+                                   isinstance(tree[-3], six.text_type)):
                 module_index = -2 if isinstance(tree[-2], six.text_type) else -3
                 module_name = tree[module_index]
                 if module_name == 'args':

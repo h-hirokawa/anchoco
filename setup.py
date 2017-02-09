@@ -3,8 +3,8 @@ Setup module for anchoco.
 """
 
 import sys
-from codecs import open
-from os import path
+# from codecs import open
+# from os import path
 try:
     from setuptools import setup, find_packages
 except ImportError:
