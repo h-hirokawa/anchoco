@@ -29,6 +29,10 @@ def _list_all_directives():
             if 'private' in x and x.private:
                 continue
             else:
+                if x == 'loop':
+                    x = 'with_'
+                elif x == 'action':
+                    directives.setdefault('local_action', []).append(aclass)
                 directives.setdefault(x, []).append(aclass)
     result = {}
     for k, v in directives.items():
@@ -55,10 +59,12 @@ def _list_all_modules():
 def _find_modules_in_path(path):
     if os.path.isdir(path):
         for module in os.listdir(path):
+            fullpath = os.path.join(path, module)
             if module.startswith('.'):
                 continue
-            elif os.path.isdir(module):
-                _find_modules_in_path(module)
+            elif os.path.isdir(fullpath):
+                _find_modules_in_path(fullpath)
+                continue
             elif module.startswith('__'):
                 continue
             elif any(module.endswith(x) for x in C.BLACKLIST_EXTS):
@@ -67,8 +73,10 @@ def _find_modules_in_path(path):
                 continue
             elif module.startswith('_'):
                 module = module.replace('_', '', 1)
-            module = os.path.splitext(module)[0]  # removes the extension
-            yield Module(module)
+            module_name = os.path.splitext(module)[0]  # removes the extension
+            module_path = module_loader.find_plugin(
+                module_name, mod_type='.py', ignore_deprecated=True)
+            yield Module(module_name, path=module_path)
 
 
 all_modules = _list_all_modules()
@@ -79,13 +87,13 @@ def _filter_ansible_objs_by_name(objs, pattern):
 
 
 class Script(object):
-    def __init__(self, src, file_name='<string>', line=None, column=None):
-        lines = src.splitlines()
+    def __init__(self, source, line=None, column=None, path='<string>'):
+        lines = source.splitlines()
         if line is None:
             line = len(lines) - 1
         if column is None:
             column = len(lines[-1])
-        self.data = self._load_yaml(src, file_name, line, column)
+        self.data = self._load_yaml(source, path, line, column)
 
     def completions(self):
         completion_funcs = defaultdict(lambda: lambda pattern: set(), dict(
@@ -97,13 +105,14 @@ class Script(object):
         ))
 
         result = set()
+        print(self.data.tree)
         for k, v in self._search_tree().items():
             if v:
                 result.update(completion_funcs[k](self.data.tree[-1]))
         return result
 
-    def _load_yaml(self, src, file_name, line, column):
-        loader = AnchocoLoader(src, file_name, line, column)
+    def _load_yaml(self, source, file_name, line, column):
+        loader = AnchocoLoader(source, file_name, line, column)
         try:
             return loader.get_single_data()
         except ScannerError as e:
@@ -117,18 +126,18 @@ class Script(object):
                     e.problem == 'found unexpected end of stream'
             ):
                 regexp = r'$'
-                inserted_str = src[e.context_mark.index]
+                inserted_str = source[e.context_mark.index]
             elif e.problem in ("mapping values are not allowed in this context",
                                "mapping values are not allowed here"):
-                ci = len(''.join(src.splitlines(True)[:e.problem_mark.line - 1]))
+                ci = len(''.join(source.splitlines(True)[:e.problem_mark.line - 1]))
                 regexp = r'$'
                 inserted_str = ':'
             else:
                 raise
-            m = re.search(regexp, src[ci:pi], re.MULTILINE)
+            m = re.search(regexp, source[ci:pi], re.MULTILINE)
             insert_index = (ci + m.start()) if m else pi
-            new_src = src[:insert_index] + inserted_str + src[insert_index:]
-            return self._load_yaml(new_src, file_name, line, column)
+            new_source = source[:insert_index] + inserted_str + source[insert_index:]
+            return self._load_yaml(new_source, file_name, line, column)
         finally:
             loader.dispose()
 
@@ -139,7 +148,7 @@ class Script(object):
             return result
 
         tree = self.data.tree
-        if isinstance(tree[0], list):
+        if tree and isinstance(tree[0], list):
             # 補完対象がトップレベルのPlay, Taskである場合
             if (len(tree) == 2 or (len(tree) == 3 and isinstance(tree[1], dict))):
                 result['task'] = result['play'] = True

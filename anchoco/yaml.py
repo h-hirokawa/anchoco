@@ -92,11 +92,14 @@ class YAMLConstructor(AnsibleConstructor):
         return mapping
 
     def _node_is_in_range(self, node):
-        result = self.pos.line in range(node.start_mark.line, node.end_mark.line + 1) and (
-            node.start_mark.line != node.end_mark.line or
-            self.pos.column in range(node.start_mark.column, node.end_mark.column + 1)
-        )
-        return result
+        if self.pos.line not in range(node.start_mark.line, node.end_mark.line + 1):
+            return False
+        elif self.pos.line == node.start_mark.line and self.pos.column < node.start_mark.column:
+            return False
+        elif self.pos.line == node.end_mark.line and self.pos.column > node.end_mark.column:
+            return False
+        print(node, self.pos)
+        return True
 
 
 if HAVE_PYYAML_C:

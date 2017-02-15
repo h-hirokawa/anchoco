@@ -65,6 +65,18 @@ class TestApiCompletions(unittest.TestCase):
             for d in edirectives:
                 assert d not in directive_names
 
+    def test_api_completions_in_second_play(self):
+        src = '''---
+- name:
+  tasks:
+    - command: echo
+
+- na
+'''
+        result = api.Script(src, line=5, column=4).completions()
+        directive_names = [d.name for d in result if isinstance(d, Directive)]
+        assert 'name' in directive_names
+
     def test_api_search_tree_play(self):
         result = api.Script(SRC, line=1, column=6)._search_tree()
         assert result['task'] is False
@@ -77,7 +89,6 @@ class TestApiCompletions(unittest.TestCase):
       a
 '''
         result = api.Script(src, line=3, column=7)._search_tree()
-        print(result)
         assert result['task'] is False
         assert result['block'] is True
 
