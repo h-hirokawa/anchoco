@@ -9,7 +9,7 @@ SRC = '''---
     - shel
     - name: comm
       action: comm
-- name: "{{ sample play }}
+- name: "{{ sample play }}"
   host
   dummy
  '''

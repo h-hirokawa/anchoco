@@ -98,7 +98,6 @@ class YAMLConstructor(AnsibleConstructor):
             return False
         elif self.pos.line == node.end_mark.line and self.pos.column > node.end_mark.column:
             return False
-        print(node, self.pos)
         return True
 
 

@@ -14,10 +14,10 @@ from yaml.scanner import ScannerError
 from .objects import Directive, Module
 from .yaml import AnchocoLoader
 
-TASK_DIRECTIVES = ('tasks', 'pre_tasks', 'post_tasks', 'handlers')
-BLOCK_DIRECTIVES = ('block', 'rescue', 'always')
-ROLE_DIRECTIVES = ('roles',)
-ACTION_DIRECTIVES = ('action', 'local_action')
+TASK_LIST_DIRECTIVES = ('tasks', 'pre_tasks', 'post_tasks', 'handlers')
+BLOCK_LIST_DIRECTIVES = ('block', 'rescue', 'always')
+ROLE_LIST_DIRECTIVES = ('roles',)
+MODULE_NAME_DIRECTIVES = ('action', 'local_action')
 
 
 def _list_all_directives():
@@ -43,8 +43,6 @@ def _list_all_directives():
 
 
 all_directives = _list_all_directives()
-task_only_directives = all_directives[Task] - all_directives[Play]
-play_only_directives = all_directives[Play] - all_directives[Task]
 
 
 def _list_all_modules():
@@ -105,7 +103,6 @@ class Script(object):
         ))
 
         result = set()
-        print(self.data.tree)
         for k, v in self._search_tree().items():
             if v:
                 result.update(completion_funcs[k](self.data.tree[-1]))
@@ -114,10 +111,14 @@ class Script(object):
     def _load_yaml(self, source, file_name, line, column):
         loader = AnchocoLoader(source, file_name, line, column)
         try:
-            return loader.get_single_data()
+            data = loader.get_single_data()
+            if isinstance(data.tree[-1], (dict, list)):
+                data.tree.append(None)
+            return data
         except ScannerError as e:
             ci = getattr(e.context_mark, 'index', 0)
             pi = getattr(e.problem_mark, 'index', 0)
+            regex_mode = re.MULTILINE
             if "could not find expected ':'" in e.problem:
                 regexp = r'\s'
                 inserted_str = ':'
@@ -127,6 +128,7 @@ class Script(object):
             ):
                 regexp = r'$'
                 inserted_str = source[e.context_mark.index]
+                regex_mode = 0
             elif e.problem in ("mapping values are not allowed in this context",
                                "mapping values are not allowed here"):
                 ci = len(''.join(source.splitlines(True)[:e.problem_mark.line - 1]))
@@ -134,7 +136,7 @@ class Script(object):
                 inserted_str = ':'
             else:
                 raise
-            m = re.search(regexp, source[ci:pi], re.MULTILINE)
+            m = re.search(regexp, source[ci:pi], regex_mode)
             insert_index = (ci + m.start()) if m else pi
             new_source = source[:insert_index] + inserted_str + source[insert_index:]
             return self._load_yaml(new_source, file_name, line, column)
@@ -146,34 +148,38 @@ class Script(object):
 
         if not hasattr(self.data, 'tree'):
             return result
-
         tree = self.data.tree
         if tree and isinstance(tree[0], list):
-            # 補完対象がトップレベルのPlay, Taskである場合
+            # 補完対象がトップレベルのPlay, Task, Blockである場合
             if (len(tree) == 2 or (len(tree) == 3 and isinstance(tree[1], dict))):
-                result['task'] = result['play'] = True
+                result['task'] = result['play'] = result['block'] = True
                 for n in tree[0]:
                     if not isinstance(n, dict):
                         continue
-                    elif [k for k in n.keys() if k in [d.name for d in task_only_directives]]:
-                        result['play'] = False
-                    elif [k for k in n.keys() if k in [d.name for d in play_only_directives]]:
-                        result['task'] = False
-                if not result['task'] and not result['play']:
-                    result['task'] = result['play'] = True
+                    for directive in n.keys():
+                        directive_result = {'play': True, 'block': True, 'task': True}
+                        for dclass, dname in ((Play, 'play'), (Block, 'block'), (Task, 'task')):
+                            if directive not in [d.name for d in all_directives[dclass]]:
+                                directive_result[dname] = False
+                        exclusion_targets = [k for k, v in directive_result.items() if not v]
+                        if len(exclusion_targets) < 3:
+                            for t in exclusion_targets:
+                                result[t] = False
+                if not [result[target] for target in ('task', 'play', 'block') if result[target]]:
+                    result['task'] = result['play'] = result['block'] = True
             # Taskのリストを含むディレクティブ内の補完
             if len(tree) >= 5 and (isinstance(tree[-3], six.text_type) or
                                    isinstance(tree[-4], six.text_type)):
                 parent = tree[-3] if isinstance(tree[-3], six.text_type) else tree[-4]
-                if parent in TASK_DIRECTIVES:
+                if parent in TASK_LIST_DIRECTIVES:
                     result['task'] = True
-                elif parent in BLOCK_DIRECTIVES:
+                elif parent in BLOCK_LIST_DIRECTIVES:
                     result['task'] = True
                     result['block'] = False
-                elif parent in ROLE_DIRECTIVES:
+                elif parent in ROLE_LIST_DIRECTIVES:
                     result['role'] = True
             # モジュール名のみを補完
-            if len(tree) >= 4 and tree[-2] in ACTION_DIRECTIVES:
+            if len(tree) >= 4 and tree[-2] in MODULE_NAME_DIRECTIVES:
                 result['module'] = True
             # モジュール引数を補完
             if len(tree) >= 4 and (isinstance(tree[-2], six.text_type) or
@@ -196,6 +202,6 @@ class Script(object):
             result['block'] = result['task']
         # 既存ディレクティブ内にBlock専用のディレクティブがあった場合、Task用ディレクティブを無効化
         if result['task'] and isinstance(tree[-2], dict):
-            if [k for k in tree[-2].keys() if k in BLOCK_DIRECTIVES]:
+            if [k for k in tree[-2].keys() if k in BLOCK_LIST_DIRECTIVES]:
                 result['task'] = False
         return result
